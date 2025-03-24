@@ -16,10 +16,15 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // Servir arquivos estáticos da pasta public
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Conexão com MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'sua_string_de_conexao_mongodb';
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+    console.error('MONGODB_URI não está definida nas variáveis de ambiente');
+    process.exit(1);
+}
+
 mongoose.connect(MONGODB_URI)
     .then(() => console.log('Conectado ao MongoDB Atlas com sucesso!'))
     .catch(err => console.error('Erro ao conectar ao MongoDB:', err));
@@ -96,7 +101,7 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // Tratamento de erro para porta em uso
 const server = app.listen(PORT, '0.0.0.0', () => {
