@@ -335,14 +335,308 @@
     </style>
 </head>
 <body>
-    <h1>Lista de Enxoval</h1>
-    <p>Teste de conexão</p>
+    <div class="header">
+        <div class="container">
+            <h1>Lista de Enxoval</h1>
+            <p>Organize seus itens de forma prática e elegante</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <form id="itemForm">
+                <div class="form-group">
+                    <label for="nome">Nome do Item</label>
+                    <input type="text" id="nome" required placeholder="Ex: Jogo de Toalhas">
+                </div>
+                
+                <div class="form-group">
+                    <label for="categoria">Categoria</label>
+                    <select id="categoria" required>
+                        <option value="Cozinha">Cozinha</option>
+                        <option value="Quarto">Quarto</option>
+                        <option value="Banheiro">Banheiro</option>
+                        <option value="Sala">Sala</option>
+                        <option value="Outros">Outros</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="quantidade">Quantidade</label>
+                    <input type="number" id="quantidade" min="1" required placeholder="Ex: 2">
+                </div>
+                
+                <div class="form-group">
+                    <label for="preco">Preço</label>
+                    <input type="number" id="preco" min="0" step="0.01" required placeholder="Ex: 99.90">
+                </div>
+                
+                <div class="form-group">
+                    <label for="prioridade">Prioridade</label>
+                    <select id="prioridade">
+                        <option value="Alta">Alta</option>
+                        <option value="Média" selected>Média</option>
+                        <option value="Baixa">Baixa</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="observacoes">Observações</label>
+                    <input type="text" id="observacoes" placeholder="Observações opcionais">
+                </div>
+                
+                <button type="submit">Adicionar Item</button>
+            </form>
+        </div>
+
+        <div class="dashboard">
+            <div class="dashboard-card">
+                <h3>Total de Itens por Categoria</h3>
+                <div class="chart-container">
+                    <canvas id="categoriaChart"></canvas>
+                </div>
+            </div>
+            <div class="dashboard-card">
+                <h3>Distribuição por Prioridade</h3>
+                <div class="chart-container">
+                    <canvas id="prioridadeChart"></canvas>
+                </div>
+            </div>
+            <div class="dashboard-card">
+                <h3>Resumo Financeiro</h3>
+                <div class="stat-value" id="valorTotal">R$ 0,00</div>
+                <p>Valor total do enxoval</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Itens do Enxoval</h2>
+            <div class="items-grid" id="itemsList">
+                <!-- Os itens serão inseridos aqui via JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <div class="notification"></div>
+
     <script>
-        // Teste de conexão com a API
-        fetch('/api/items')
-            .then(response => response.json())
-            .then(data => console.log('Dados:', data))
-            .catch(error => console.error('Erro:', error));
+        // Configuração da URL da API
+        const API_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000/api' 
+            : '/api';
+
+        // Função para mostrar notificação
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Função para carregar os itens
+        async function loadItems() {
+            try {
+                const response = await fetch(`${API_URL}/items`);
+                const items = await response.json();
+                const itemsList = document.getElementById('itemsList');
+                itemsList.innerHTML = '';
+                
+                items.forEach(item => {
+                    const badgeClass = {
+                        'Alta': 'badge-alta',
+                        'Média': 'badge-media',
+                        'Baixa': 'badge-baixa'
+                    }[item.prioridade];
+
+                    const statusBadge = item.comprado ? 
+                        '<span class="badge badge-comprado">Comprado</span>' : 
+                        '<span class="badge badge-pendente">Pendente</span>';
+
+                    const itemElement = document.createElement('div');
+                    itemElement.className = `item ${item.comprado ? 'comprado' : 'pendente'}`;
+                    itemElement.innerHTML = `
+                        <strong>${item.nome}</strong>
+                        <p>Categoria: ${item.categoria}</p>
+                        <p>Quantidade: ${item.quantidade}</p>
+                        <p>Preço: R$ ${item.preco.toFixed(2)}</p>
+                        <p>
+                            <span class="badge ${badgeClass}">
+                                ${item.prioridade}
+                            </span>
+                            ${statusBadge}
+                        </p>
+                        ${item.observacoes ? `<p>Observações: ${item.observacoes}</p>` : ''}
+                        <div class="actions">
+                            <button class="toggle-status" onclick="toggleStatus('${item._id}')">
+                                ${item.comprado ? 'Marcar como Pendente' : 'Marcar como Comprado'}
+                            </button>
+                            <button class="delete-button" onclick="deleteItem('${item._id}')">Excluir</button>
+                        </div>
+                    `;
+                    itemsList.appendChild(itemElement);
+                });
+
+                // Atualizar dashboards após carregar itens
+                updateDashboards(items);
+            } catch (error) {
+                console.error('Erro ao carregar itens:', error);
+                showNotification('Erro ao carregar itens');
+            }
+        }
+
+        // Função para adicionar um novo item
+        document.getElementById('itemForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const item = {
+                nome: document.getElementById('nome').value,
+                categoria: document.getElementById('categoria').value,
+                quantidade: parseInt(document.getElementById('quantidade').value),
+                preco: parseFloat(document.getElementById('preco').value),
+                prioridade: document.getElementById('prioridade').value,
+                observacoes: document.getElementById('observacoes').value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/items`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(item)
+                });
+
+                if (response.ok) {
+                    document.getElementById('itemForm').reset();
+                    loadItems();
+                    showNotification('Item adicionado com sucesso!');
+                } else {
+                    console.error('Erro ao adicionar item');
+                }
+            } catch (error) {
+                console.error('Erro ao adicionar item:', error);
+                showNotification('Erro ao adicionar item');
+            }
+        });
+
+        // Função para excluir um item
+        async function deleteItem(id) {
+            if (!confirm('Tem certeza que deseja excluir este item?')) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/items/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    loadItems();
+                    showNotification('Item excluído com sucesso!');
+                } else {
+                    console.error('Erro ao excluir item');
+                }
+            } catch (error) {
+                console.error('Erro ao excluir item:', error);
+                showNotification('Erro ao excluir item');
+            }
+        }
+
+        // Função para alternar o status de compra
+        async function toggleStatus(id) {
+            try {
+                const response = await fetch(`${API_URL}/items/${id}/toggle-status`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const item = await response.json();
+                    const message = item.comprado ? 
+                        'Item marcado como comprado!' : 
+                        'Item marcado como pendente!';
+                    showNotification(message);
+                    loadItems();
+                } else {
+                    showNotification('Erro ao alterar status do item');
+                }
+            } catch (error) {
+                console.error('Erro ao alterar status do item:', error);
+                showNotification('Erro ao alterar status do item');
+            }
+        }
+
+        // Função para atualizar os dashboards
+        function updateDashboards(items) {
+            // Inicializar contadores
+            const categorias = {};
+            const prioridades = { 'Alta': 0, 'Média': 0, 'Baixa': 0 };
+            let valorTotal = 0;
+
+            // Processar os itens
+            items.forEach(item => {
+                // Contagem por categoria
+                categorias[item.categoria] = (categorias[item.categoria] || 0) + 1;
+                
+                // Contagem por prioridade
+                prioridades[item.prioridade]++;
+                
+                // Valor total
+                valorTotal += item.preco * item.quantidade;
+            });
+
+            // Atualizar valor total
+            document.getElementById('valorTotal').textContent = `R$ ${valorTotal.toFixed(2)}`;
+
+            // Gráfico de categorias
+            new Chart(document.getElementById('categoriaChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(categorias),
+                    datasets: [{
+                        data: Object.values(categorias),
+                        backgroundColor: [
+                            '#FF6384',
+                            '#36A2EB',
+                            '#FFCE56',
+                            '#4BC0C0',
+                            '#9966FF'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Gráfico de prioridades
+            new Chart(document.getElementById('prioridadeChart'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(prioridades),
+                    datasets: [{
+                        data: Object.values(prioridades),
+                        backgroundColor: [
+                            '#dc2626',
+                            '#d97706',
+                            '#16a34a'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        // Carregar itens quando a página carregar
+        loadItems();
     </script>
 </body>
 </html> 

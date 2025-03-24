@@ -25,9 +25,25 @@ if (!MONGODB_URI) {
     process.exit(1);
 }
 
-mongoose.connect(MONGODB_URI)
-    .then(() => console.log('Conectado ao MongoDB Atlas com sucesso!'))
-    .catch(err => console.error('Erro ao conectar ao MongoDB:', err));
+// Configurações do Mongoose
+mongoose.set('strictQuery', false);
+
+// Tentativa de conexão com retry
+const connectWithRetry = async () => {
+    try {
+        await mongoose.connect(MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
+        console.log('Conectado ao MongoDB Atlas com sucesso!');
+    } catch (err) {
+        console.error('Erro ao conectar ao MongoDB:', err);
+        console.log('Tentando reconectar em 5 segundos...');
+        setTimeout(connectWithRetry, 5000);
+    }
+};
+
+connectWithRetry();
 
 // Middleware para logging de requisições
 app.use((req, res, next) => {
@@ -52,6 +68,7 @@ app.get('/api/items', async (req, res) => {
         const items = await Item.find();
         res.json(items);
     } catch (error) {
+        console.error('Erro ao buscar itens:', error);
         res.status(500).json({ error: 'Erro ao buscar itens' });
     }
 });
@@ -62,6 +79,7 @@ app.post('/api/items', async (req, res) => {
         await item.save();
         res.status(201).json(item);
     } catch (error) {
+        console.error('Erro ao criar item:', error);
         res.status(400).json({ error: 'Erro ao criar item' });
     }
 });
@@ -71,6 +89,7 @@ app.delete('/api/items/:id', async (req, res) => {
         await Item.findByIdAndDelete(req.params.id);
         res.status(204).send();
     } catch (error) {
+        console.error('Erro ao deletar item:', error);
         res.status(400).json({ error: 'Erro ao deletar item' });
     }
 });
@@ -82,6 +101,7 @@ app.patch('/api/items/:id/toggle-status', async (req, res) => {
         await item.save();
         res.json(item);
     } catch (error) {
+        console.error('Erro ao alterar status do item:', error);
         res.status(400).json({ error: 'Erro ao alterar status do item' });
     }
 });
@@ -102,20 +122,8 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
-// Tratamento de erro para porta em uso
-const server = app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor rodando na porta ${PORT}`);
-}).on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-        console.error(`Porta ${PORT} já está em uso. Tentando outra porta...`);
-        setTimeout(() => {
-            server.close();
-            app.listen(PORT + 1);
-        }, 1000);
-    } else {
-        console.error('Erro ao iniciar servidor:', err);
-    }
 });
 
 module.exports = app; 
