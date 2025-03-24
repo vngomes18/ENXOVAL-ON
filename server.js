@@ -15,8 +15,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Servir arquivos estáticos
-app.use(express.static(path.join(__dirname, 'public')));
+// Servir arquivos estáticos da pasta public
+app.use(express.static('public'));
 
 // Conexão com MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || 'sua_string_de_conexao_mongodb';
@@ -87,6 +87,11 @@ app.get('/test', (req, res) => {
 });
 
 // Rota principal - deve vir depois das outras rotas
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Rota para todas as outras URLs - deve ser a última rota
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
