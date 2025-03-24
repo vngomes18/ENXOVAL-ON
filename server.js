@@ -16,7 +16,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // Servir arquivos estáticos da pasta public
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
 // Conexão com MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
